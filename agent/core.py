@@ -20,7 +20,6 @@ SYSTEM_PROMPT = """You are a capable AI assistant with access to the following t
 - api_request: Make HTTP requests to external APIs
 - run_terminal: Execute shell commands
 - execute_code: Run Python code
-- folder_access: Read, write, list, and delete files/directories
 - remember / recall / forget / list_memories: Manage your persistent memory across sessions
 
 {memory_context}

@@ -7,8 +7,6 @@ import subprocess
 import sys
 import textwrap
 import traceback
-from pathlib import Path
-
 import httpx
 
 from .memory import PermanentMemory
@@ -141,76 +139,6 @@ CODE_TOOL_SCHEMA = {
 }
 
 
-# ---------------------------------------------------------------------------
-# 2.4 Folder / file access tool
-# ---------------------------------------------------------------------------
-
-def folder_access(action: str, path: str, content: str | None = None) -> str:
-    """
-    Perform file-system operations.
-    action: 'read' | 'write' | 'list' | 'delete'
-    """
-    p = Path(path).expanduser().resolve()
-    try:
-        if action == "read":
-            if not p.exists():
-                return f"Error: {path!r} does not exist."
-            if p.is_dir():
-                return f"Error: {path!r} is a directory — use action='list'."
-            return p.read_text(errors="replace")[:8000]
-
-        elif action == "write":
-            if content is None:
-                return "Error: 'content' is required for action='write'."
-            p.parent.mkdir(parents=True, exist_ok=True)
-            p.write_text(content)
-            return f"Written {len(content)} chars to {path!r}."
-
-        elif action == "list":
-            target = p if p.is_dir() else p.parent
-            if not target.exists():
-                return f"Error: {str(target)!r} does not exist."
-            entries = sorted(target.iterdir(), key=lambda e: (e.is_file(), e.name))
-            lines = []
-            for e in entries:
-                tag = "/" if e.is_dir() else ""
-                lines.append(f"  {e.name}{tag}")
-            return f"{str(target)}/\n" + "\n".join(lines) if lines else "(empty)"
-
-        elif action == "delete":
-            if not p.exists():
-                return f"Error: {path!r} does not exist."
-            if p.is_dir():
-                return "Error: use run_terminal with 'rm -rf' to delete directories."
-            p.unlink()
-            return f"Deleted {path!r}."
-
-        else:
-            return f"Unknown action {action!r}. Use: read, write, list, delete."
-    except PermissionError:
-        return f"Error: permission denied for {path!r}."
-    except Exception as exc:
-        return f"Error: {exc}"
-
-
-FOLDER_TOOL_SCHEMA = {
-    "type": "function",
-    "function": {
-        "name": "folder_access",
-        "description": "Read, write, list, or delete files and directories on the local filesystem.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "action":  {"type": "string", "enum": ["read", "write", "list", "delete"],
-                            "description": "Operation to perform"},
-                "path":    {"type": "string", "description": "File or directory path"},
-                "content": {"type": "string", "description": "Content to write (only for action='write')"},
-            },
-            "required": ["action", "path"],
-        },
-    },
-}
-
 
 # ---------------------------------------------------------------------------
 # 3. Memory tools (wraps PermanentMemory instance)
@@ -307,7 +235,6 @@ def build_tool_registry(mem: PermanentMemory) -> tuple[dict, list[dict]]:
         "api_request":   api_request,
         "run_terminal":  run_terminal,
         "execute_code":  execute_code,
-        "folder_access": folder_access,
         **memory_registry,
     }
 
@@ -315,7 +242,6 @@ def build_tool_registry(mem: PermanentMemory) -> tuple[dict, list[dict]]:
         API_TOOL_SCHEMA,
         TERMINAL_TOOL_SCHEMA,
         CODE_TOOL_SCHEMA,
-        FOLDER_TOOL_SCHEMA,
         *memory_schemas,
     ]
 
