@@ -7,3 +7,4 @@ i want to build an agent, which should contains these components :
 2.4 folder access tool
 3. a permenent memory to capture important facts accoss conversations
 3.1 a temporary memory to capture current conversation.
+
