@@ -3,11 +3,15 @@ Tool definitions: API, terminal, code execution, folder access, and memory.
 Each tool exposes a callable and an Ollama-compatible schema dict.
 """
 
+import os
 import subprocess
 import sys
 import textwrap
 import traceback
+
 import httpx
+import psycopg2
+from ddgs import DDGS
 
 from .memory import PermanentMemory
 
@@ -224,6 +228,74 @@ def make_memory_tools(mem: PermanentMemory) -> tuple[dict, list[dict]]:
 
 
 # ---------------------------------------------------------------------------
+# Search tool (web via DuckDuckGo | db via PostgreSQL)
+# ---------------------------------------------------------------------------
+
+def search(type: str, query: str) -> str:
+    """Unified search: web (DuckDuckGo) or db (PostgreSQL SQL query)."""
+    if type == "web":
+        try:
+            results = DDGS().text(query, max_results=5)
+            if not results:
+                return "No results found."
+            lines = []
+            for r in results:
+                lines.append(f"- {r['title']}\n  {r['href']}\n  {r['body']}")
+            return "\n\n".join(lines)
+        except Exception as exc:
+            return f"Web search error: {exc}"
+
+    elif type == "db":
+        url = os.environ.get("DATABASE_URL")
+        if not url:
+            return "Error: DATABASE_URL environment variable is not set."
+        try:
+            conn = psycopg2.connect(url)
+            cur = conn.cursor()
+            cur.execute(query)
+            if cur.description:
+                cols = [d[0] for d in cur.description]
+                rows = cur.fetchall()
+                lines = [" | ".join(cols)]
+                lines += [" | ".join(str(v) for v in row) for row in rows]
+                result = "\n".join(lines)
+            else:
+                conn.commit()
+                result = f"Query OK. Rows affected: {cur.rowcount}"
+            cur.close()
+            conn.close()
+            return result
+        except Exception as exc:
+            return f"DB error: {exc}"
+
+    else:
+        return f"Unknown search type {type!r}. Use 'web' or 'db'."
+
+
+SEARCH_TOOL_SCHEMA = {
+    "type": "function",
+    "function": {
+        "name": "search",
+        "description": (
+            "Search the web or a PostgreSQL database. "
+            "Use type='web' with a plain-English query (DuckDuckGo). "
+            "Use type='db' with a SQL statement (PostgreSQL, requires DATABASE_URL)."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "type":  {"type": "string", "enum": ["web", "db"],
+                          "description": "'web' for DuckDuckGo search, 'db' for SQL query"},
+                "query": {"type": "string",
+                          "description": "Plain-English search string (web) or SQL statement (db)"},
+            },
+            "required": ["type", "query"],
+        },
+    },
+}
+
+
+# ---------------------------------------------------------------------------
 # Registry builder
 # ---------------------------------------------------------------------------
 
@@ -232,9 +304,10 @@ def build_tool_registry(mem: PermanentMemory) -> tuple[dict, list[dict]]:
     memory_registry, memory_schemas = make_memory_tools(mem)
 
     registry = {
-        "api_request":   api_request,
-        "run_terminal":  run_terminal,
-        "execute_code":  execute_code,
+        "api_request":  api_request,
+        "run_terminal": run_terminal,
+        "execute_code": execute_code,
+        "search":       search,
         **memory_registry,
     }
 
@@ -242,6 +315,7 @@ def build_tool_registry(mem: PermanentMemory) -> tuple[dict, list[dict]]:
         API_TOOL_SCHEMA,
         TERMINAL_TOOL_SCHEMA,
         CODE_TOOL_SCHEMA,
+        SEARCH_TOOL_SCHEMA,
         *memory_schemas,
     ]
 

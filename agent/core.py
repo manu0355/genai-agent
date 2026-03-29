@@ -12,7 +12,7 @@ from .tools import build_tool_registry
 
 _console = Console(stderr=True)
 
-DEFAULT_MODEL = "qwen3.5:0.8b"
+DEFAULT_MODEL = "deepseek-coder:6.7b"
 DEFAULT_BACKEND = "ollama"
 
 SYSTEM_PROMPT = """You are a capable AI assistant with access to the following tools:
@@ -20,6 +20,7 @@ SYSTEM_PROMPT = """You are a capable AI assistant with access to the following t
 - api_request: Make HTTP requests to external APIs
 - run_terminal: Execute shell commands
 - execute_code: Run Python code
+- search: Search the web (type='web', DuckDuckGo) or query a PostgreSQL database (type='db', SQL)
 - remember / recall / forget / list_memories: Manage your persistent memory across sessions
 
 {memory_context}
